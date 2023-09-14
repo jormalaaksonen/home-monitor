@@ -11,3 +11,4 @@ endpoint   = https://openapi.tuyaeu.com
 baseclass  = =tuya=
 device_id  = bf******************0v
 code       = switch_1,cur_voltage
+interval   = 10

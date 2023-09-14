@@ -19,7 +19,9 @@ from tuya_iot import (
 
 connections = {}
 devices = {}
+states = {}
 debug = 0
+time_format = '%Y-%m-%d %H:%M:%S'
 
 # ---------------------------------------------------------------------------
 
@@ -102,9 +104,30 @@ def read_device(d):
     
 # ---------------------------------------------------------------------------
 
+def time_str(t):
+    return time.strftime(time_format, t)
+
+# ---------------------------------------------------------------------------
+
+def state_string(s):
+    a = [ f'{time_str(i["start"])} –> {time_str(i["end"])} = {i["state"]}' for i in s ]
+    return ', '.join(a)
+    
+# ---------------------------------------------------------------------------
+
 def track_device(d):
     m = read_device(d)
-    print(f'{time.strftime("%Y%m%d %H:%M:%S")} {d[".name"]} => {m}')
+    t = d['.previous']
+    s = time_str(t)
+    print(f'{s} {d[".name"]} => {m}')
+    for i,j in m.items():
+        k = d['.name']+' '+i
+        if k not in states:
+            states[k] = []
+        if len(states[k])==0 or states[k][-1]['state']!=j:
+            states[k].append({'state': j, 'start':t, 'end':t})
+            print(k, ': ', state_string(states[k]))
+        states[k][-1]['end'] = t
     
 # ---------------------------------------------------------------------------
 
@@ -149,9 +172,22 @@ if __name__ == '__main__':
     if debug>0:
         print(devices)
 
-    for t in range(300):
+    while True:
+        hit = False
+        now = time.localtime()
+        #print(now)
+        
         for _,i in devices.items():
-            ensure_connection(i)
-            track_device(i)
+            l = i.get('.previous', None)
+            v = float(i.get('interval', 60))
+            if l is None or time.mktime(now)-time.mktime(l)>=v:
+                i['.previous'] = now
+                ensure_connection(i)
+                track_device(i)
+                hit = True
+
+        if not hit:
+            print(time_str(now))
+            
         time.sleep(1)
         
