@@ -1,0 +1,13 @@
+[=tuya=]
+type       = tuya
+username   = <email address>
+password   = <***>
+access_id  = xa****************7k
+access_key = c5****************************9d
+asset_id   = 1*******4
+endpoint   = https://openapi.tuyaeu.com
+
+[airam]
+baseclass  = =tuya=
+device_id  = bf******************0v
+code       = switch_1,cur_voltage

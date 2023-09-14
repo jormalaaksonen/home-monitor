@@ -6,7 +6,7 @@ A class and framework for monitoring and controlling home appliances.
 # Installation
 
 ```
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 # Configuration
