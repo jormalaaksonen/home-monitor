@@ -1,1 +1,2 @@
-tuya-iot-py-sdk # git@github.com:tuya/tuya-iot-python-sdk.git
+tuya-iot-py-sdk # https://github.com/tuya/tuya-iot-python-sdk
+tuyalinksdk     # https://github.com/tuya/tuyaos-link-sdk-python

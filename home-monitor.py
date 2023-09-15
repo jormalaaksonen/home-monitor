@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import logging
+import coloredlogs
 import configparser
 import argparse
 import time
@@ -16,6 +17,9 @@ from tuya_iot import (
     TuyaTokenInfo,
     TUYA_LOGGER
 )
+
+from tuyalinksdk.client import TuyaClient
+from tuyalinksdk.console_qrcode import qrcode_generate
 
 connections = {}
 devices = {}
@@ -51,13 +55,68 @@ def open_tuya_connection(d):
     
 # ---------------------------------------------------------------------------
 
+def open_tuya_client_connection(d):
+    global clxxx # should bet rid of this...
+    
+    def on_connected():
+        pass
+        #print('Connected.')
+
+    def on_qrcode(url):
+        qrcode_generate(url)
+
+    def on_reset(data):
+        print('Reset:', data)
+
+    def on_dps(dps):
+        print('DataPoints:', dps)
+        clxxx.push_dps(dps)
+
+    v = ['product_id', 'uuid', 'authkey']
+    for i in v:
+        if i not in d:
+            print(f'KEY {i} not in configuration for TUYA CLIENT connection')
+            return None
+    if debug>0:
+        print(f'STARTING TO OPEN tuya client connection {d["product_id"]}')
+    c = {'type': 'tuya-client'}
+    c['client'] = TuyaClient(productid='dckfipsgz4kkfxta',
+                        uuid='uuidfa1a7dd4c6d90043',
+                        authkey='Fk1tP2PeG1lG1YVZ6pEyAgkcFfDMjCJg')
+
+    c['client'].on_connected = on_connected
+    c['client'].on_qrcode = on_qrcode
+    c['client'].on_reset = on_reset
+    c['client'].on_dps = on_dps
+    c['client'].connect()
+    c['client'].loop_start()
+    
+    time.sleep(1)
+
+    clxxx = c['client']
+    
+    if debug>0:
+        print(f'READY OPENING tuya client connection {d["product_id"]}')
+    
+    return c
+    
+# ---------------------------------------------------------------------------
+
 def ensure_connection(d):
+    t = d.get('type', '')
     if '.connection' not in d:
-        if d.get('type', '')=='tuya':
+        if t=='tuya':
             k = f'tuya-{d["endpoint"]}-{d["username"]}'
             if k not in connections:
                 connections[k] = open_tuya_connection(d)
                 d['.connection'] = k
+        elif t=='tuya-client':
+            k = f'tuya-client-{d["product_id"]}'
+            if k not in connections:
+                connections[k] = open_tuya_client_connection(d)
+                d['.connection'] = k
+        else:
+            print(f'No rule for making a conncetion for "{d[".name"]}" type={t} known.')
         
 # ---------------------------------------------------------------------------
 
@@ -90,16 +149,46 @@ def read_tuya_device(d):
                 
 # ---------------------------------------------------------------------------
 
+def read_tuya_client(d):
+    if debug>0:
+        print(f'READING TUYA CLIENT {d} ==> {connections[d[".connection"]]}')
+
+    if '.i' not in d:
+        d['.i'] = 0
+        
+    c = connections[d['.connection']]
+
+    msg = [ 'hello', 'world', 'here', 'we'' go', 'again' ]
+    #print('pushing', flush=True)
+    a = {'101': msg[d['.i']%len(msg)], '102': d['.i']%10, '103': 37}
+    c['client'].push_dps(a)
+    #print('pushed', flush=True)
+    d['.i'] += 1
+
+    return a
+                
+# ---------------------------------------------------------------------------
+
 def read_device(d):
     if '.connection' not  in d:
         print(f'NO CONNECTION IN {d[".name"]}')
         return {}
+    if connections[d['.connection']] is None:
+        print(f'None CONNECTION IN {d[".name"]}')
+        return {}
     if debug>0:
         print(f'READING DEVICE {d} ==> {connections[d[".connection"]]}')
 
-    if connections[d['.connection']].get('type', '')=='tuya':
+    t = connections[d['.connection']].get('type', '')
+
+    if t=='tuya':
         return read_tuya_device(d)
 
+    if t=='tuya-client':
+        return read_tuya_client(d)
+
+    print(f'NO READING/WRITING defined for "{d[".name"]}" type={t} known.')
+    
     return {}
     
 # ---------------------------------------------------------------------------
@@ -156,6 +245,9 @@ def config2devices(config):
 # ---------------------------------------------------------------------------
     
 if __name__ == '__main__':
+    #test()
+    #exit(0)
+
     parser = argparse.ArgumentParser(
         prog='ProgramName',
         description='What the program does',
@@ -165,6 +257,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # TUYA_LOGGER.setLevel(logging.DEBUG)
+    # coloredlogs.install(level='DEBUG')
 
     config = configparser.ConfigParser()
     config.read('config')

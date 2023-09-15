@@ -12,3 +12,10 @@ baseclass  = =tuya=
 device_id  = bf******************0v
 code       = switch_1,cur_voltage
 interval   = 10
+
+[monitor]
+type       = tuya-client
+product_id = dc************ta
+uuid       = uuidfa************43
+authkey    = Fk****************************Jg
+interval   = 10
