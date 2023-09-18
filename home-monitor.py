@@ -55,6 +55,31 @@ def open_tuya_connection(d):
     
 # ---------------------------------------------------------------------------
 
+def send_dps(a, d):
+    print(f'{time_str()} {a} => {d}')
+    if a in devices:
+        v = devices[a]
+        for i, j in d.items():
+            z = 'dp-'+i
+            if not z in v:
+                print(f'{z} not found in dict {v}')
+                return
+            if debug>0:
+                print(f'RULE {j} => {v[z]}')
+            if v[z][0]!='$':
+                print(f'RULE {v[z]} does not start with $')
+                return
+            b = v[z][1:].split('.')
+            if not b[0] in devices:
+                print(f'{b[0]} not in devices')
+                return
+            devices[b[0]]['.'+b[1]] = j
+            if '.changed' not in devices[b[0]]:
+                devices[b[0]]['.changed'] = set()
+            devices[b[0]]['.changed'].add(b[1])                
+
+# ---------------------------------------------------------------------------
+
 def open_tuya_client_connection(d):
     global clxxx # should bet rid of this...
     
@@ -69,8 +94,10 @@ def open_tuya_client_connection(d):
         print('Reset:', data)
 
     def on_dps(dps):
-        print('DataPoints:', dps)
+        if debug>0:
+            print('DataPoints:', dps)
         clxxx.push_dps(dps)
+        send_dps('monitor', dps) # obs! hard-coded!
 
     v = ['product_id', 'uuid', 'authkey']
     for i in v:
@@ -125,6 +152,20 @@ def read_tuya_device(d):
         print(f'READING TUYA DEVICE {d} ==> {connections[d[".connection"]]}')
 
     c = connections[d['.connection']]
+
+    if '.changed' in d:
+        l = []
+        z = {}
+        for i in d['.changed']:
+            if debug>0:
+                print(f'CHANGED {i} in {d[".name"]}')
+            l.append({'code': i, 'value': d['.'+i]})
+            z[i] = d['.'+i]
+        print(f'{time_str()} {d[".name"]} <= {z}')
+        c['devicemanager'].send_commands(d['device_id'], l)
+        del d['.changed']
+        time.sleep(1)
+
     m = c['devicemanager'].get_device_status(d['device_id'])
     #print(m)
     if not m.get('success', False):
@@ -149,7 +190,24 @@ def read_tuya_device(d):
                 
 # ---------------------------------------------------------------------------
 
-def read_tuya_client(d):
+def expand_value(v):
+    if v[:6]==':int: ':
+        return int(v[6:])
+    if v[:8]==':float: ':
+        return float(v[8:])
+    if v[0]=='$':
+        a = v[1:].split('.')
+        z = '.'+a[1]
+        if a[0] in devices:
+            if z in devices[a[0]]:
+                return devices[a[0]][z]
+            else:
+                return None
+    return v
+                
+# ---------------------------------------------------------------------------
+
+def write_tuya_client(d):
     if debug>0:
         print(f'READING TUYA CLIENT {d} ==> {connections[d[".connection"]]}')
 
@@ -158,18 +216,29 @@ def read_tuya_client(d):
         
     c = connections[d['.connection']]
 
-    msg = [ 'hello', 'world', 'here', 'we'' go', 'again' ]
-    #print('pushing', flush=True)
-    a = {'101': msg[d['.i']%len(msg)], '102': d['.i']%10, '103': 37}
-    c['client'].push_dps(a)
-    #print('pushed', flush=True)
-    d['.i'] += 1
+    if False:
+        msg = [ 'hello', 'world', 'here', 'we'' go', 'again' ]
+        #print('pushing', flush=True)
+        a = {'101': msg[d['.i']%len(msg)], '102': d['.i']%10, '103': 37}
+        c['client'].push_dps(a)
+        #print('pushed', flush=True)
+        d['.i'] += 1
 
+    a = {}
+    for i, j in d.items():
+        if i[:3]=='dp-':
+            v = expand_value(j)
+            if v is not None:
+                a[i[3:]] = v
+    if debug>0:
+        print(a)
+    r = c['client'].push_dps(a)
+    
     return a
                 
 # ---------------------------------------------------------------------------
 
-def read_device(d):
+def handle_device(d):
     if '.connection' not  in d:
         print(f'NO CONNECTION IN {d[".name"]}')
         return {}
@@ -177,23 +246,25 @@ def read_device(d):
         print(f'None CONNECTION IN {d[".name"]}')
         return {}
     if debug>0:
-        print(f'READING DEVICE {d} ==> {connections[d[".connection"]]}')
+        print(f'HANDLING DEVICE {d} ==> {connections[d[".connection"]]}')
 
     t = connections[d['.connection']].get('type', '')
 
     if t=='tuya':
-        return read_tuya_device(d)
+        return read_tuya_device(d), True
 
     if t=='tuya-client':
-        return read_tuya_client(d)
+        return write_tuya_client(d), False
 
-    print(f'NO READING/WRITING defined for "{d[".name"]}" type={t} known.')
+    print(f'NO HANDLING defined for "{d[".name"]}" type={t} known.')
     
     return {}
     
 # ---------------------------------------------------------------------------
 
-def time_str(t):
+def time_str(t = None):
+    if t is None:
+        t = time.localtime()
     return time.strftime(time_format, t)
 
 # ---------------------------------------------------------------------------
@@ -205,11 +276,13 @@ def state_string(s):
 # ---------------------------------------------------------------------------
 
 def track_device(d):
-    m = read_device(d)
+    m, x = handle_device(d)
+    xd = '=>' if x else '<='
     t = d['.previous']
     s = time_str(t)
-    print(f'{s} {d[".name"]} => {m}')
-    for i,j in m.items():
+    print(f'{s} {d[".name"]} {xd} {m}')
+    for i, j in m.items():
+        d['.'+i] = j
         k = d['.name']+' '+i
         if k not in states:
             states[k] = []
