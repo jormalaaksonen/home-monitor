@@ -13,6 +13,11 @@ device_id  = bf******************0v
 code       = switch_1,cur_voltage
 interval   = 10
 
+[electricity]
+type       = function
+sync       = *:00:00
+interval   = 1
+
 [monitor]
 type       = tuya-client
 product_id = dc************ta

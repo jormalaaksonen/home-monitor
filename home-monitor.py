@@ -5,6 +5,7 @@ import coloredlogs
 import configparser
 import argparse
 import time
+import random
 
 from tuya_iot import (
     TuyaOpenAPI,
@@ -142,8 +143,13 @@ def ensure_connection(d):
             if k not in connections:
                 connections[k] = open_tuya_client_connection(d)
                 d['.connection'] = k
+        elif t=='function':
+            k = f'function-{d[".name"]}'
+            if k not in connections:
+                connections[k] = { 'type': 'function' }
+                d['.connection'] = k
         else:
-            print(f'No rule for making a conncetion for "{d[".name"]}" type={t} known.')
+            print(f'No rule for making a connection for "{d[".name"]}" type={t} known.')
         
 # ---------------------------------------------------------------------------
 
@@ -238,13 +244,37 @@ def write_tuya_client(d):
                 
 # ---------------------------------------------------------------------------
 
+def function_electricity(d):
+    s = d.get('sync', None)
+    if s is not None:
+        if False:
+            return {}
+
+    now = time.localtime()
+    if now.tm_sec==0:
+        v = random.randrange(1000)
+        return { 'pricenow100': v }
+    else:
+        return {}
+                
+# ---------------------------------------------------------------------------
+
+def apply_function(d):
+    if d.get('.name', '')=='electricity':
+        return function_electricity(d)
+    
+    print(f'CANNOT APPLY unknown function() {d}')
+    return {}
+                
+# ---------------------------------------------------------------------------
+
 def handle_device(d):
     if '.connection' not  in d:
         print(f'NO CONNECTION IN {d[".name"]}')
-        return {}
+        return {}, True
     if connections[d['.connection']] is None:
         print(f'None CONNECTION IN {d[".name"]}')
-        return {}
+        return {}, True
     if debug>0:
         print(f'HANDLING DEVICE {d} ==> {connections[d[".connection"]]}')
 
@@ -256,7 +286,10 @@ def handle_device(d):
     if t=='tuya-client':
         return write_tuya_client(d), False
 
-    print(f'NO HANDLING defined for "{d[".name"]}" type={t} known.')
+    if t=='function':
+        return apply_function(d), True
+    
+    print(f'NO HANDLING defined for device "{d[".name"]}" type="{t}" known.')
     
     return {}
     
