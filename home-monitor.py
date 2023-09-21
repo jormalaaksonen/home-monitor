@@ -137,17 +137,17 @@ def ensure_connection(d):
             k = f'tuya-{d["endpoint"]}-{d["username"]}'
             if k not in connections:
                 connections[k] = open_tuya_connection(d)
-                d['.connection'] = k
+            d['.connection'] = k
         elif t=='tuya-client':
             k = f'tuya-client-{d["product_id"]}'
             if k not in connections:
                 connections[k] = open_tuya_client_connection(d)
-                d['.connection'] = k
+            d['.connection'] = k
         elif t=='function':
             k = f'function-{d[".name"]}'
             if k not in connections:
                 connections[k] = { 'type': 'function' }
-                d['.connection'] = k
+            d['.connection'] = k
         else:
             print(f'No rule for making a connection for "{d[".name"]}" type={t} known.')
         
@@ -358,12 +358,14 @@ if __name__ == '__main__':
         prog='ProgramName',
         description='What the program does',
         epilog='Text at the bottom of help')
-    parser.add_argument('-v', '--verbose',
-                        action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()
 
-    # TUYA_LOGGER.setLevel(logging.DEBUG)
-    # coloredlogs.install(level='DEBUG')
+    if args.debug:
+        debug = 1
+        TUYA_LOGGER.setLevel(logging.DEBUG)
+        coloredlogs.install(level='DEBUG')
 
     config = configparser.ConfigParser()
     config.read('config')
